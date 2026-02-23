@@ -1,0 +1,22 @@
+[
+    {
+      "id": "err_port_in_use",
+      "title": "Puerto en uso",
+      "patterns": ["port already in use", "EADDRINUSE"],
+      "summary": "Un proceso ya está usando ese puerto.",
+      "explain": {
+        "what": "El puerto que necesita tu app ya está ocupado.",
+        "why": ["Otro servidor está corriendo.", "Un proceso previo no se cerró."],
+        "safe_options": [
+          "Ver qué proceso usa el puerto",
+          "Cerrar ese proceso",
+          "Cambiar el puerto"
+        ]
+      },
+      "commands": [
+        { "os": "mac", "cmd": "lsof -i :PUERTO" },
+        { "os": "linux", "cmd": "ss -lptn | grep :PUERTO" }
+      ],
+      "warnings": ["No mates procesos críticos del sistema."]
+    }
+  ]

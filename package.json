@@ -1,0 +1,26 @@
+{
+  "name": "termcoach",
+  "version": "0.1.0",
+  "description": "Terminal copilot: explain errors and recall commands by intent.",
+  "bin": {
+    "termcoach": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/index.js",
+    "pkg": "npm run build && pkg -t node18-macos-arm64,node18-macos-x64,node18-linux-x64 dist/index.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "pkg": "^5.8.1",
+    "tsc-alias": "^1.8.16",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
