@@ -1,22 +1,91 @@
 [
-    {
-      "id": "err_port_in_use",
-      "title": "Puerto en uso",
-      "patterns": ["port already in use", "EADDRINUSE"],
-      "summary": "Un proceso ya está usando ese puerto.",
-      "explain": {
-        "what": "El puerto que necesita tu app ya está ocupado.",
-        "why": ["Otro servidor está corriendo.", "Un proceso previo no se cerró."],
-        "safe_options": [
-          "Ver qué proceso usa el puerto",
-          "Cerrar ese proceso",
-          "Cambiar el puerto"
-        ]
-      },
-      "commands": [
-        { "os": "mac", "cmd": "lsof -i :PUERTO" },
-        { "os": "linux", "cmd": "ss -lptn | grep :PUERTO" }
-      ],
-      "warnings": ["No mates procesos críticos del sistema."]
-    }
-  ]
+  {
+    "id": "eaddrinuse",
+    "pattern": "EADDRINUSE",
+    "title": "Port already in use",
+    "explanation": "Another process is already listening on that port, so the app cannot bind to it.",
+    "causes": [
+      "A previous server instance is still running",
+      "Another application is using the same port"
+    ],
+    "fixes": [
+      "Find the process with lsof -i :PORT",
+      "Kill the PID with kill PID",
+      "Or change the app port"
+    ],
+    "priority": 10,
+    "tags": ["node", "port", "server"]
+  },
+  {
+    "id": "eacces",
+    "pattern": "EACCES|permission denied",
+    "title": "Permission denied",
+    "explanation": "The current user does not have enough permissions for that action, path, or port.",
+    "causes": [
+      "File or directory permissions are too restrictive",
+      "Trying to bind to a privileged port (<1024)",
+      "Command requires elevated privileges"
+    ],
+    "fixes": [
+      "Check permissions with ls -l",
+      "Use a higher port (for example 3000)",
+      "Adjust permissions or ownership if appropriate"
+    ],
+    "priority": 9,
+    "tags": ["permissions", "linux", "mac"]
+  },
+  {
+    "id": "enoent",
+    "pattern": "ENOENT|no such file or directory",
+    "title": "File or path not found",
+    "explanation": "The system cannot find the file, directory, or command being referenced.",
+    "causes": [
+      "Path is misspelled",
+      "File does not exist",
+      "Command is not available in PATH"
+    ],
+    "fixes": [
+      "Verify the path",
+      "List the directory contents with ls",
+      "Check PATH or install the missing command"
+    ],
+    "priority": 10,
+    "tags": ["path", "filesystem", "node"]
+  },
+  {
+    "id": "econnrefused",
+    "pattern": "ECONNREFUSED|Connection refused",
+    "title": "Connection refused",
+    "explanation": "A connection was attempted, but no service was listening on the target host and port.",
+    "causes": [
+      "Target server is not running",
+      "Wrong port",
+      "Wrong host"
+    ],
+    "fixes": [
+      "Confirm host and port values",
+      "Start the target service",
+      "Test connectivity locally with curl"
+    ],
+    "priority": 9,
+    "tags": ["network", "api", "backend"]
+  },
+  {
+    "id": "module-not-found",
+    "pattern": "Cannot find module|ERR_MODULE_NOT_FOUND",
+    "title": "Module not found",
+    "explanation": "Node cannot resolve the module in an import or require statement.",
+    "causes": [
+      "Dependency is not installed",
+      "Relative path is incorrect",
+      "ESM/CommonJS or extension mismatch"
+    ],
+    "fixes": [
+      "Install dependencies with npm install",
+      "Check the import path",
+      "Review ESM/CommonJS configuration"
+    ],
+    "priority": 10,
+    "tags": ["node", "npm", "imports"]
+  }
+]

@@ -1,18 +1,109 @@
 [
-    {
-      "id": "rec_free_port",
-      "intent": "liberar puerto",
-      "aliases": ["puerto ocupado", "cerrar puerto"],
-      "steps": [
-        "Identifica el proceso que usa el puerto",
-        "Detén el proceso"
-      ],
-      "commands": [
-        {
-          "os": "mac",
-          "cmds": ["lsof -i :PUERTO", "kill PID"]
-        }
-      ],
-      "warnings": ["Evita usar kill -9 salvo que sea necesario."]
-    }
-  ]
+  {
+    "intent": "free port",
+    "title": "Free a busy port",
+    "steps": [
+      "Find which process is using the port",
+      "Stop the process using its PID",
+      "Verify the port is no longer in use"
+    ],
+    "commands": [
+      "lsof -i :PORT",
+      "kill PID",
+      "lsof -i :PORT"
+    ],
+    "warnings": [
+      "Avoid using kill -9 unless the process does not respond"
+    ],
+    "os": ["mac", "linux"],
+    "safe": true,
+    "advanced": false,
+    "priority": 10,
+    "tags": ["port", "node", "dev-server"]
+  },
+  {
+    "intent": "kill process",
+    "title": "Find and kill a process by name",
+    "steps": [
+      "Search for the process by name",
+      "Review the PID and confirm it is the correct process",
+      "Kill the process"
+    ],
+    "commands": [
+      "ps aux | grep NAME",
+      "kill PID"
+    ],
+    "warnings": [
+      "Do not kill system processes unless fully sure"
+    ],
+    "os": ["mac", "linux"],
+    "safe": true,
+    "advanced": false,
+    "priority": 8,
+    "tags": ["process", "debug"]
+  },
+  {
+    "intent": "list listening ports",
+    "title": "List listening ports",
+    "steps": [
+      "List processes listening on ports",
+      "Filter by a specific port if needed"
+    ],
+    "commands": [
+      "lsof -nP -iTCP -sTCP:LISTEN",
+      "lsof -nP -iTCP:3000 -sTCP:LISTEN"
+    ],
+    "warnings": [
+      "Using -nP avoids slow hostname and service name resolution"
+    ],
+    "os": ["mac", "linux"],
+    "safe": true,
+    "advanced": false,
+    "priority": 7,
+    "tags": ["network", "ports"]
+  },
+  {
+    "intent": "find file",
+    "title": "Find a file or text in a project",
+    "steps": [
+      "Search files by name",
+      "Search text inside files",
+      "Filter by extension if needed"
+    ],
+    "commands": [
+      "find . -name \"*text*\"",
+      "grep -R \"text\" .",
+      "grep -R --include=\"*.ts\" \"text\" src"
+    ],
+    "warnings": [
+      "grep -R can be slow in large projects"
+    ],
+    "os": ["mac", "linux"],
+    "safe": true,
+    "advanced": false,
+    "priority": 9,
+    "tags": ["find", "grep", "debug"]
+  },
+  {
+    "intent": "check folder sizes",
+    "title": "Find the largest folders",
+    "steps": [
+      "Show folder sizes",
+      "Sort from smallest to largest or reverse",
+      "Limit output to focus on the biggest entries"
+    ],
+    "commands": [
+      "du -sh *",
+      "du -sh * | sort -h",
+      "du -sh * | sort -hr | head"
+    ],
+    "warnings": [
+      "If sort -h is not available, use platform-specific alternatives"
+    ],
+    "os": ["mac", "linux"],
+    "safe": true,
+    "advanced": false,
+    "priority": 8,
+    "tags": ["disk", "cleanup"]
+  }
+]

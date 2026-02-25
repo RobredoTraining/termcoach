@@ -1,26 +1,29 @@
 import type { Command } from "commander";
 import { loadKb } from "../core/kbStore";
-import { formatRecipe } from "../core/format";
+import { matchByRegex } from "../core/matchRegex";
+import { formatExplain } from "../core/format";
 
-export function registerHelp(program: Command) {
+export function registerExplain(program: Command) {
   program
-    .command("help")
-    .argument("<intent...>")
-    .description("Get commands by intention")
-    .action(async (intentParts: string[]) => {
-      const intent = intentParts.join(" ").toLowerCase();
+    .command("explain")
+    .description("Explain an error message")
+    .option("-e, --error <text>", "Provide error text")
+    .action(async (opts) => {
+      const errorText = opts.error?.trim();
+
+      if (!errorText) {
+        console.error("Provide error with --error");
+        process.exit(1);
+      }
+
       const kb = await loadKb();
+      const match = matchByRegex(kb.errors, errorText);
 
-      const recipe = kb.recipes.find(r =>
-        r.intent.toLowerCase() === intent ||
-        r.aliases?.some(a => a.toLowerCase() === intent)
-      );
-
-      if (!recipe) {
-        console.log("No recipe found.");
+      if (!match) {
+        console.log("No match found.");
         return;
       }
 
-      console.log(formatRecipe(recipe));
+      console.log(formatExplain(match));
     });
 }

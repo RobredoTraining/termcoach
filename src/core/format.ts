@@ -40,22 +40,25 @@ export function formatExplain(entry: KbErrorEntry): string {
 }
 
 export function formatRecipe(entry: KbRecipeEntry): string {
-  let output = `🧭 ${entry.intent}\n\n`;
+  let output = `🧭 ${entry.title ?? entry.intent}\n\n`;
 
-  output += "Pasos\n";
+  output += "Steps\n";
   entry.steps.forEach((step, i) => {
     output += `${i + 1}. ${step}\n`;
   });
 
-  output += "\nComandos\n";
-  entry.commands[0].cmds.forEach(cmd => {
-    output += `- ${cmd}\n`;
+  output += "\nCommands\n";
+  entry.commands.forEach((group) => {
+    output += `- (${group.os})\n`;
+    group.cmds.forEach((cmd) => {
+      output += `  - ${cmd}\n`;
+    });
   });
 
-  if (entry.warnings) {
-    output += "\n⚠️ Advertencias\n";
-    entry.warnings.forEach(w => {
-      output += `- ${w}\n`;
+  if (entry.warnings?.length) {
+    output += "\n⚠️ Warnings\n";
+    entry.warnings.forEach((warning) => {
+      output += `- ${warning}\n`;
     });
   }
 
