@@ -1,91 +1,141 @@
 [
   {
     "id": "eaddrinuse",
-    "pattern": "EADDRINUSE",
     "title": "Port already in use",
-    "explanation": "Another process is already listening on that port, so the app cannot bind to it.",
-    "causes": [
-      "A previous server instance is still running",
-      "Another application is using the same port"
+    "patterns": ["EADDRINUSE", "address already in use"],
+    "summary": "Another process is already listening on that port.",
+    "explain": {
+      "what": "Another process is already listening on that port, so the app cannot bind to it.",
+      "why": [
+        "A previous server instance is still running",
+        "Another application is using the same port"
+      ],
+      "safe_options": [
+        "Find the process using the port",
+        "Stop the process using its PID",
+        "Or change the application port"
+      ]
+    },
+    "commands": [
+      { "os": "mac", "cmd": "lsof -i :PORT" },
+      { "os": "mac", "cmd": "kill PID" },
+      { "os": "linux", "cmd": "lsof -i :PORT" },
+      { "os": "linux", "cmd": "kill PID" }
     ],
-    "fixes": [
-      "Find the process with lsof -i :PORT",
-      "Kill the PID with kill PID",
-      "Or change the app port"
+    "warnings": [
+      "Avoid using kill -9 unless the process does not respond"
     ],
     "priority": 10,
-    "tags": ["node", "port", "server"]
+    "tags": ["node", "port", "server"],
+    "safe": true,
+    "advanced": false
   },
   {
     "id": "eacces",
-    "pattern": "EACCES|permission denied",
     "title": "Permission denied",
-    "explanation": "The current user does not have enough permissions for that action, path, or port.",
-    "causes": [
-      "File or directory permissions are too restrictive",
-      "Trying to bind to a privileged port (<1024)",
-      "Command requires elevated privileges"
-    ],
-    "fixes": [
-      "Check permissions with ls -l",
-      "Use a higher port (for example 3000)",
-      "Adjust permissions or ownership if appropriate"
+    "patterns": ["EACCES", "permission denied"],
+    "summary": "The current user does not have enough permissions for that action, path, or port.",
+    "explain": {
+      "what": "The current user does not have enough permissions for that action, path, or port.",
+      "why": [
+        "File or directory permissions are too restrictive",
+        "Trying to bind to a privileged port (<1024)",
+        "The command requires elevated privileges"
+      ],
+      "safe_options": [
+        "Check permissions with ls -l",
+        "Use a higher port, for example 3000",
+        "Adjust permissions or ownership if appropriate"
+      ]
+    },
+    "commands": [
+      { "os": "mac", "cmd": "ls -l" },
+      { "os": "linux", "cmd": "ls -l" }
     ],
     "priority": 9,
-    "tags": ["permissions", "linux", "mac"]
+    "tags": ["permissions", "linux", "mac"],
+    "safe": true,
+    "advanced": false
   },
   {
     "id": "enoent",
-    "pattern": "ENOENT|no such file or directory",
     "title": "File or path not found",
-    "explanation": "The system cannot find the file, directory, or command being referenced.",
-    "causes": [
-      "Path is misspelled",
-      "File does not exist",
-      "Command is not available in PATH"
-    ],
-    "fixes": [
-      "Verify the path",
-      "List the directory contents with ls",
-      "Check PATH or install the missing command"
+    "patterns": ["ENOENT", "no such file or directory"],
+    "summary": "The system cannot find the file, directory, or command being referenced.",
+    "explain": {
+      "what": "The system cannot find the file, directory, or command being referenced.",
+      "why": [
+        "The path is misspelled",
+        "The file does not exist",
+        "The command is not available in PATH"
+      ],
+      "safe_options": [
+        "Verify the path",
+        "List the directory contents with ls",
+        "Check PATH or install the missing command"
+      ]
+    },
+    "commands": [
+      { "os": "mac", "cmd": "ls" },
+      { "os": "linux", "cmd": "ls" }
     ],
     "priority": 10,
-    "tags": ["path", "filesystem", "node"]
+    "tags": ["path", "filesystem", "node"],
+    "safe": true,
+    "advanced": false
   },
   {
     "id": "econnrefused",
-    "pattern": "ECONNREFUSED|Connection refused",
     "title": "Connection refused",
-    "explanation": "A connection was attempted, but no service was listening on the target host and port.",
-    "causes": [
-      "Target server is not running",
-      "Wrong port",
-      "Wrong host"
-    ],
-    "fixes": [
-      "Confirm host and port values",
-      "Start the target service",
-      "Test connectivity locally with curl"
+    "patterns": ["ECONNREFUSED", "Connection refused"],
+    "summary": "A connection was attempted, but no service was listening on the target host and port.",
+    "explain": {
+      "what": "A connection was attempted, but no service was listening on the target host and port.",
+      "why": [
+        "The target server is not running",
+        "The port is incorrect",
+        "The host is incorrect"
+      ],
+      "safe_options": [
+        "Confirm the host and port values",
+        "Start the target service",
+        "Test connectivity locally with curl"
+      ]
+    },
+    "commands": [
+      { "os": "mac", "cmd": "curl http://HOST:PORT" },
+      { "os": "linux", "cmd": "curl http://HOST:PORT" }
     ],
     "priority": 9,
-    "tags": ["network", "api", "backend"]
+    "tags": ["network", "api", "backend"],
+    "safe": true,
+    "advanced": false
   },
   {
     "id": "module-not-found",
-    "pattern": "Cannot find module|ERR_MODULE_NOT_FOUND",
     "title": "Module not found",
-    "explanation": "Node cannot resolve the module in an import or require statement.",
-    "causes": [
-      "Dependency is not installed",
-      "Relative path is incorrect",
-      "ESM/CommonJS or extension mismatch"
-    ],
-    "fixes": [
-      "Install dependencies with npm install",
-      "Check the import path",
-      "Review ESM/CommonJS configuration"
+    "patterns": ["Cannot find module", "ERR_MODULE_NOT_FOUND"],
+    "summary": "Node cannot resolve the module in an import or require statement.",
+    "explain": {
+      "what": "Node cannot resolve the module in an import or require statement.",
+      "why": [
+        "The dependency is not installed",
+        "The relative path is incorrect",
+        "There is an ESM/CommonJS or file extension mismatch"
+      ],
+      "safe_options": [
+        "Install dependencies with npm install",
+        "Check the import path",
+        "Review the ESM/CommonJS configuration"
+      ]
+    },
+    "commands": [
+      { "os": "mac", "cmd": "npm install" },
+      { "os": "linux", "cmd": "npm install" }
     ],
     "priority": 10,
-    "tags": ["node", "npm", "imports"]
+    "tags": ["node", "npm", "imports"],
+    "safe": true,
+    "advanced": false
   }
 ]

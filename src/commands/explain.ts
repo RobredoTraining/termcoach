@@ -15,6 +15,10 @@ export function registerExplain(program: Command) {
       }
 
       const kb = await loadKb();
+
+      console.log("DEBUG first error entry:", JSON.stringify(kb.errors[0], null, 2));
+      console.log("DEBUG input error:", JSON.stringify(opts.error, null, 2));
+      
       const match = matchByRegex(kb.errors, opts.error);
 
       if (!match) {

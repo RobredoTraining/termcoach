@@ -1,29 +1,24 @@
 import type { Command } from "commander";
 import { loadKb } from "../core/kbStore";
-import { matchByRegex } from "../core/matchRegex";
-import { formatExplain } from "../core/format";
+import { formatRecipe } from "../core/format";
+import { matchRecipe } from "../core/matchRecipe";
 
-export function registerExplain(program: Command) {
+export function registerHelp(program: Command) {
   program
-    .command("explain")
-    .description("Explain an error message")
-    .option("-e, --error <text>", "Provide error text")
-    .action(async (opts) => {
-      const errorText = opts.error?.trim();
-
-      if (!errorText) {
-        console.error("Provide error with --error");
-        process.exit(1);
-      }
-
+    .command("help")
+    .argument("<intent...>")
+    .description("Get commands by intention")
+    .action(async (intentParts: string[]) => {
+      const intent = intentParts.join(" ");
       const kb = await loadKb();
-      const match = matchByRegex(kb.errors, errorText);
 
-      if (!match) {
-        console.log("No match found.");
+      const recipe = matchRecipe(kb.recipes, intent);
+
+      if (!recipe) {
+        console.log("No recipe found.");
         return;
       }
 
-      console.log(formatExplain(match));
+      console.log(formatRecipe(recipe));
     });
 }

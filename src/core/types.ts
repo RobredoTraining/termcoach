@@ -48,7 +48,7 @@ export type KbErrorEntry = {
 export type KbRecipeEntry = {
   id: string;
   intent: string;
-  title: string;
+  title?: string;
   aliases?: string[];
   steps: string[];
   commands: KbRecipeCommandGroup[];
