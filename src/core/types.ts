@@ -6,7 +6,6 @@ export type ExplainSections = {
 };
 
 // Shared metadata for optional filtering/ranking features.
-// Kept optional so existing KB entries remain valid.
 export type KbMetadata = {
   priority?: number;
   tags?: string[];
@@ -35,9 +34,6 @@ export type KbErrorEntry = {
   explain: ExplainSections;
   commands?: KbExplainCommand[];
   warnings?: string[];
-
-  // Optional metadata supports future ranking/filtering
-  // without breaking the current KB schema.
   priority?: number;
   tags?: string[];
   safe?: boolean;
@@ -53,16 +49,13 @@ export type KbRecipeEntry = {
   steps: string[];
   commands: KbRecipeCommandGroup[];
   warnings?: string[];
-
-  // Optional metadata supports future CLI flags such as
-  // --safe / --advanced and better matching/ranking.
   priority?: number;
   tags?: string[];
   safe?: boolean;
   advanced?: boolean;
 };
 
-// Root KB container if both files are loaded together.
+// Root KB container if both tables are loaded together.
 export type Kb = {
   errors: KbErrorEntry[];
   recipes: KbRecipeEntry[];

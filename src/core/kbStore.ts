@@ -1,104 +1,97 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import type { Kb, KbErrorEntry, KbRecipeEntry } from "./types";
+import { getDb } from "./db";
+import type { KbErrorEntry, KbRecipeEntry } from "./types";
 
-/**
- * In dev: this file runs from src/core (via tsx),
- * but __dirname still points to compiled location when built (dist/core).
- * KB files are expected next to dist/core, inside dist/kb.
- */
-const KB_DIR = path.join(__dirname, "..", "kb");
+// ---------------------------------------------------------------------------
+// Raw DB row shapes — all JSON arrays/objects stored as serialized strings.
+// ---------------------------------------------------------------------------
 
-type SupportedOs = "mac" | "linux";
-
-
-// Raw errors can come in multiple shapes while iterating on the KB.
-type RawErrorEntry =
-  | (KbErrorEntry & { pattern?: never })
-  | (Omit<KbErrorEntry, "patterns"> & { pattern: string; patterns?: never })
-  | (Omit<KbErrorEntry, "patterns"> & { patterns: string });
-
-function normalizeError(raw: RawErrorEntry): KbErrorEntry {
-  // Support legacy "pattern" (string) and also tolerate "patterns" as a string.
-  const patterns =
-    Array.isArray((raw as any).patterns)
-      ? (raw as any).patterns
-      : typeof (raw as any).patterns === "string"
-        ? [(raw as any).patterns]
-        : typeof (raw as any).pattern === "string"
-          ? [(raw as any).pattern]
-          : [];
-
-  return {
-    id: raw.id,
-    title: raw.title,
-    patterns,
-    summary: raw.summary,
-    explain: raw.explain,
-    commands: raw.commands,
-    warnings: raw.warnings,
-    priority: raw.priority,
-    tags: raw.tags,
-    safe: raw.safe,
-    advanced: raw.advanced,
-  };
-}
-
-// Raw recipe shape from recipes.json before normalization.
-// This reflects the current file format (flat commands + os list).
-type RawRecipeEntry = {
-  id?: string;
-  intent: string;
-  title?: string;
-  aliases?: string[];
-  steps: string[];
-  commands: string[];
-  os?: SupportedOs[];
-  warnings?: string[];
-  priority?: number;
-  tags?: string[];
-  safe?: boolean;
-  advanced?: boolean;
+type RawErrorRow = {
+  id: string;
+  title: string;
+  patterns: string;   // JSON: string[]
+  summary: string;
+  explain: string;    // JSON: { what, why?, safe_options? }
+  commands: string;   // JSON: { os, cmd }[]
+  warnings: string;   // JSON: string[]
+  priority: number;
+  tags: string;       // JSON: string[]
+  safe: number;
+  advanced: number;
 };
 
-// Convert the flat recipe JSON shape into the app's typed recipe shape.
-function normalizeRecipe(raw: RawRecipeEntry): KbRecipeEntry {
-  const targetOs: SupportedOs[] = raw.os?.length ? raw.os : ["mac", "linux"];
+type RawRecipeRow = {
+  id: string;
+  intent: string;
+  title: string | null;
+  aliases: string;    // JSON: string[]
+  steps: string;      // JSON: string[]
+  commands: string;   // JSON: { os, cmds[] }[]
+  warnings: string;   // JSON: string[]
+  priority: number;
+  tags: string;       // JSON: string[]
+  safe: number;
+  advanced: number;
+};
 
+// ---------------------------------------------------------------------------
+// Deserializers — convert raw DB rows back to typed app objects.
+// ---------------------------------------------------------------------------
+
+function deserializeError(row: RawErrorRow): KbErrorEntry {
   return {
-    id: raw.id ?? raw.intent.trim().toLowerCase().replace(/\s+/g, "-"),
-    intent: raw.intent,
-    title: raw.title,
-    aliases: raw.aliases,
-    steps: raw.steps,
-    commands: targetOs.map((os) => ({
-      os,
-      cmds: raw.commands,
-    })),
-    warnings: raw.warnings,
-    priority: raw.priority,
-    tags: raw.tags,
-    safe: raw.safe,
-    advanced: raw.advanced,
+    id: row.id,
+    title: row.title,
+    patterns: JSON.parse(row.patterns),
+    summary: row.summary,
+    explain: JSON.parse(row.explain),
+    commands: JSON.parse(row.commands),
+    warnings: JSON.parse(row.warnings),
+    priority: row.priority,
+    tags: JSON.parse(row.tags),
+    safe: row.safe === 1,
+    advanced: row.advanced === 1,
   };
 }
 
-export async function loadKb(): Promise<Kb> {
-  const errorsPath = path.join(KB_DIR, "errors.json");
-  const recipesPath = path.join(KB_DIR, "recipes.json");
-
-  const errorsRaw = await fs.readFile(errorsPath, "utf8");
-  const recipesRaw = await fs.readFile(recipesPath, "utf8");
-
-  // Parse raw JSON arrays from disk.
-  const parsedErrors = JSON.parse(errorsRaw) as KbErrorEntry[];
-  const parsedRecipes = JSON.parse(recipesRaw) as RawRecipeEntry[];
-
-  // Normalize recipes to the internal app shape expected by formatters/commands.
-  const normalizedRecipes = parsedRecipes.map(normalizeRecipe);
-
+function deserializeRecipe(row: RawRecipeRow): KbRecipeEntry {
   return {
-    errors: parsedErrors,
-    recipes: normalizedRecipes,
+    id: row.id,
+    intent: row.intent,
+    title: row.title ?? undefined,
+    aliases: JSON.parse(row.aliases),
+    steps: JSON.parse(row.steps),
+    commands: JSON.parse(row.commands),
+    warnings: JSON.parse(row.warnings),
+    priority: row.priority,
+    tags: JSON.parse(row.tags),
+    safe: row.safe === 1,
+    advanced: row.advanced === 1,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Public loaders — used by matchers and commands.
+// ---------------------------------------------------------------------------
+
+export function loadErrors(): KbErrorEntry[] {
+  const db = getDb();
+  const rows = db
+    .prepare("SELECT * FROM errors ORDER BY priority DESC")
+    .all() as RawErrorRow[];
+  return rows.map(deserializeError);
+}
+
+export function loadRecipes(): KbRecipeEntry[] {
+  const db = getDb();
+  const rows = db
+    .prepare("SELECT * FROM recipes ORDER BY priority DESC")
+    .all() as RawRecipeRow[];
+  return rows.map(deserializeRecipe);
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers used by matchers (avoid re-exporting raw row types).
+// ---------------------------------------------------------------------------
+
+export { deserializeError, deserializeRecipe };
+export type { RawErrorRow, RawRecipeRow };

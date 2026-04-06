@@ -1,28 +1,26 @@
 import type { Command } from "commander";
-import { loadKb } from "../core/kbStore";
+import { loadErrors } from "../core/kbStore";
 import { matchByRegex } from "../core/matchRegex";
 import { formatExplain } from "../core/format";
 
-export function registerExplain(program: Command) {
+export function registerExplain(program: Command): void {
   program
     .command("explain")
-    .description("Explain an error message")
-    .option("-e, --error <text>", "Provide error text")
-    .action(async (opts) => {
-      if (!opts.error) {
-        console.error("Provide error with --error");
+    .description("Explain a terminal error message")
+    .option("-e, --error <text>", "Error text to explain")
+    .action((opts) => {
+      const errorText = opts.error?.trim();
+
+      if (!errorText) {
+        console.error('Please provide the error text with --error "<message>"');
         process.exit(1);
       }
 
-      const kb = await loadKb();
-
-      console.log("DEBUG first error entry:", JSON.stringify(kb.errors[0], null, 2));
-      console.log("DEBUG input error:", JSON.stringify(opts.error, null, 2));
-      
-      const match = matchByRegex(kb.errors, opts.error);
+      const errors = loadErrors();
+      const match = matchByRegex(errors, errorText);
 
       if (!match) {
-        console.log("No match found.");
+        console.log("No match found for that error. Consider adding it to errors.json and re-seeding.");
         return;
       }
 

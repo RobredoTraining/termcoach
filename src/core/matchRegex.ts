@@ -1,51 +1,108 @@
+import { getDb } from "./db";
+import { deserializeError, type RawErrorRow } from "./kbStore";
+import { normalizeText } from "./normalize";
 import type { KbErrorEntry } from "./types";
 
-// Match an input error string against KB regex patterns.
-// Returns the first matching KB entry or null if nothing matches.
-// export function matchByRegex(errors: KbErrorEntry[], text: string): KbErrorEntry | null {
-//   // Defensive fallback avoids runtime issues with nullish input.
-//   const input = text ?? "";
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-//   for (const entry of errors) {
-//     for (const pattern of entry.patterns) {
-//       try {
-//         // Compile each pattern as case-insensitive regex.
-//         const regex = new RegExp(pattern, "i");
+/** Strip chars that are FTS5 operators so raw error strings don't break queries. */
+function sanitizeForFts(text: string): string {
+  return normalizeText(text)
+    .replace(/["\-+*^():<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-//         // Return the first matching entry to keep behavior predictable.
-//         if (regex.test(input)) {
-//           return entry;
-//         }
-//       } catch {
-//         // Skip invalid regex patterns so one bad KB entry
-//         // does not crash the whole explain command.
-//         continue;
-//       }
-//     }
-//   }
+/** Test a single regex pattern against input, swallowing compile/runtime errors. */
+function safeRegexTest(pattern: string, input: string): boolean {
+  try {
+    return new RegExp(pattern, "i").test(input);
+  } catch {
+    return false;
+  }
+}
 
-//   // No regex match found in the KB.
-//   return null;
-// }
+// ---------------------------------------------------------------------------
+// matchByRegex — hybrid regex + FTS5 matcher
+//
+// Step 1: Collect ALL regex matches (not just the first).
+// Step 2: If exactly one → return it.
+// Step 3: If multiple  → rerank with FTS5 BM25 over candidate IDs only.
+// Step 4: If none       → open FTS5 search as a fuzzy fallback.
+// Step 5: If FTS fails  → fall back to priority winner / null.
+// ---------------------------------------------------------------------------
 
-// Match an input error string against KB regex patterns.
-// Returns the first matching entry or null when no match is found.
 export function matchByRegex(errors: KbErrorEntry[], text: string): KbErrorEntry | null {
-  const input = text ?? "";
+  const inputRaw = text ?? "";
+  const sanitized = sanitizeForFts(inputRaw);
 
-  for (const entry of errors) {
-    const patterns = Array.isArray(entry.patterns) ? entry.patterns : [];
-    for (const pattern of patterns) {
-      try {
-        const regex = new RegExp(pattern, "i");
-        if (regex.test(input)) {
-          return entry;
-        }
-      } catch {
-        continue;
-      }
+  // Step 1 — collect every entry whose regex patterns match the input.
+  const candidates = errors.filter(
+    (entry) =>
+      Array.isArray(entry.patterns) &&
+      entry.patterns.some((p) => safeRegexTest(p, inputRaw))
+  );
+
+  // Step 2 — single match: return immediately, no ranking needed.
+  if (candidates.length === 1) return candidates[0];
+
+  // Pre-sort by priority DESC for consistent fallback behaviour.
+  const byPriority = [...candidates].sort(
+    (a, b) => (b.priority ?? 0) - (a.priority ?? 0)
+  );
+  const priorityWinner = byPriority[0] ?? null;
+
+  const db = getDb();
+
+  // Step 3 — multiple regex matches: rerank with FTS5 BM25 over just those IDs.
+  if (candidates.length > 1 && sanitized) {
+    try {
+      const placeholders = candidates.map(() => "?").join(", ");
+      const sql = `
+        SELECT e.*
+        FROM errors e
+        JOIN (
+          SELECT id
+          FROM errors_fts
+          WHERE errors_fts MATCH ?
+            AND id IN (${placeholders})
+          ORDER BY bm25(errors_fts)
+          LIMIT 1
+        ) fts ON e.id = fts.id
+      `;
+      const params = [sanitized, ...candidates.map((c) => c.id)];
+      const row = db.prepare(sql).get(...params) as RawErrorRow | undefined;
+
+      return row ? deserializeError(row) : priorityWinner;
+    } catch {
+      // FTS5 query failed (bad tokens, etc.) — fall through to priority winner.
+      return priorityWinner;
     }
   }
 
-  return null;
+  // Step 4 — no regex match: open FTS5 search across the full errors table.
+  if (!sanitized) return null;
+
+  try {
+    const row = db
+      .prepare(
+        `SELECT e.*
+         FROM errors e
+         JOIN (
+           SELECT id
+           FROM errors_fts
+           WHERE errors_fts MATCH ?
+           ORDER BY bm25(errors_fts)
+           LIMIT 1
+         ) fts ON e.id = fts.id`
+      )
+      .get(sanitized) as RawErrorRow | undefined;
+
+    return row ? deserializeError(row) : null;
+  } catch {
+    // FTS5 query failed — nothing we can do.
+    return null;
+  }
 }
