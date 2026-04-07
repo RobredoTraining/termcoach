@@ -7,12 +7,14 @@ import type { KbErrorEntry } from "./types";
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Strip chars that are FTS5 operators so raw error strings don't break queries. */
+/**
+ * Extract only alphanumeric/underscore tokens — bulletproof for FTS5.
+ * CLI error strings are full of symbols, colons, slashes, IPs, etc. that
+ * trip FTS5 query parsing. Extracting tokens avoids all of that.
+ */
 function sanitizeForFts(text: string): string {
-  return normalizeText(text)
-    .replace(/["\-+*^():<>]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const tokens = normalizeText(text).match(/[a-z0-9_]+/g) ?? [];
+  return tokens.join(" ");
 }
 
 /** Test a single regex pattern against input, swallowing compile/runtime errors. */
@@ -24,12 +26,16 @@ function safeRegexTest(pattern: string, input: string): boolean {
   }
 }
 
+/** Max candidates to rerank via FTS5 before hitting SQLite param limits. */
+const MAX_RERANK_CANDIDATES = 200;
+
 // ---------------------------------------------------------------------------
 // matchByRegex — hybrid regex + FTS5 matcher
 //
 // Step 1: Collect ALL regex matches (not just the first).
 // Step 2: If exactly one → return it.
 // Step 3: If multiple  → rerank with FTS5 BM25 over candidate IDs only.
+//         Guard: skip rerank if candidate set exceeds MAX_RERANK_CANDIDATES.
 // Step 4: If none       → open FTS5 search as a fuzzy fallback.
 // Step 5: If FTS fails  → fall back to priority winner / null.
 // ---------------------------------------------------------------------------
@@ -57,7 +63,13 @@ export function matchByRegex(errors: KbErrorEntry[], text: string): KbErrorEntry
   const db = getDb();
 
   // Step 3 — multiple regex matches: rerank with FTS5 BM25 over just those IDs.
+  // Guard: if the candidate set is too large, skip FTS reranking to avoid
+  // hitting SQLite's default parameter limit (~999) and return priority winner.
   if (candidates.length > 1 && sanitized) {
+    if (candidates.length > MAX_RERANK_CANDIDATES) {
+      return priorityWinner;
+    }
+
     try {
       const placeholders = candidates.map(() => "?").join(", ");
       const sql = `
@@ -77,7 +89,7 @@ export function matchByRegex(errors: KbErrorEntry[], text: string): KbErrorEntry
 
       return row ? deserializeError(row) : priorityWinner;
     } catch {
-      // FTS5 query failed (bad tokens, etc.) — fall through to priority winner.
+      // FTS5 query failed — fall through to priority winner.
       return priorityWinner;
     }
   }

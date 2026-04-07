@@ -7,29 +7,76 @@ import type { KbRecipeEntry } from "./types";
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Strip FTS5 operator chars so natural-language intent strings query safely. */
+/** Extract only alphanumeric/underscore tokens — bulletproof for FTS5. */
 function sanitizeForFts(text: string): string {
-  return normalizeText(text)
-    .replace(/["\-+*^():<>]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const tokens = normalizeText(text).match(/[a-z0-9_]+/g) ?? [];
+  return tokens.join(" ");
 }
 
 // ---------------------------------------------------------------------------
-// matchRecipe — FTS5 BM25 search
-//
-// Replaces the old hand-crafted scoring loop.
-// FTS5 indexes intent + title + aliases + tags and ranks results with BM25
-// automatically — stemming, partial matches, and synonym-like tokens work
-// out of the box via the porter tokenizer.
-//
-// The `recipes` param is kept for API compatibility with the old signature
-// but the actual search hits SQLite.
+// matchRecipeLocal — the original scoring matcher, kept as a fallback
+// when FTS5 is unavailable or fails (bad tokens, DB error, etc.).
 // ---------------------------------------------------------------------------
 
-export function matchRecipe(_recipes: KbRecipeEntry[], rawIntent: string): KbRecipeEntry | null {
+type ScoredRecipe = {
+  entry: KbRecipeEntry;
+  score: number;
+  priority: number;
+};
+
+function matchRecipeLocal(recipes: KbRecipeEntry[], rawIntent: string): KbRecipeEntry | null {
+  const input = normalizeText(rawIntent);
+  if (!input) return null;
+
+  const candidates: ScoredRecipe[] = [];
+
+  for (const entry of recipes) {
+    const intent = normalizeText(entry.intent);
+    const aliases = (entry.aliases ?? []).map(normalizeText);
+    const tags = (entry.tags ?? []).map(normalizeText);
+    const priority = entry.priority ?? 0;
+
+    let score = 0;
+
+    if (intent === input) {
+      score = 100;
+    } else if (intent.includes(input) || input.includes(intent)) {
+      score = 80;
+    } else if (aliases.includes(input)) {
+      score = 70;
+    } else if (aliases.some((a) => a.includes(input) || input.includes(a))) {
+      score = 60;
+    } else if (tags.includes(input)) {
+      score = 40;
+    } else if (tags.some((t) => t.includes(input) || input.includes(t))) {
+      score = 30;
+    }
+
+    if (score > 0) {
+      candidates.push({ entry, score, priority });
+    }
+  }
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.priority - a.priority;
+  });
+
+  return candidates[0].entry;
+}
+
+// ---------------------------------------------------------------------------
+// matchRecipe — FTS5 BM25 primary, local scoring fallback
+//
+// FTS5 indexes intent + title + aliases + tags and ranks with BM25.
+// If FTS5 fails (parse error, bad tokens) → fall back to the local scorer.
+// ---------------------------------------------------------------------------
+
+export function matchRecipe(recipes: KbRecipeEntry[], rawIntent: string): KbRecipeEntry | null {
   const sanitized = sanitizeForFts(rawIntent);
-  if (!sanitized) return null;
+  if (!sanitized) return matchRecipeLocal(recipes, rawIntent);
 
   const db = getDb();
 
@@ -48,9 +95,12 @@ export function matchRecipe(_recipes: KbRecipeEntry[], rawIntent: string): KbRec
       )
       .get(sanitized) as RawRecipeRow | undefined;
 
-    return row ? deserializeRecipe(row) : null;
+    if (row) return deserializeRecipe(row);
+
+    // FTS returned no rows — try local scoring as a last resort.
+    return matchRecipeLocal(recipes, rawIntent);
   } catch {
-    // FTS5 query failed — bad tokens or empty result.
-    return null;
+    // FTS5 query failed — fall back to local scoring (never go blind).
+    return matchRecipeLocal(recipes, rawIntent);
   }
 }
